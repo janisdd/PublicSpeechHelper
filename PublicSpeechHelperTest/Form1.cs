@@ -9,109 +9,159 @@ using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using PublicSpeechHelper;
-
+using PublicSpeechHelper.Helpers;
+using PublicSpeechHelper.SpeechApi;
 using SpeechLib;
 
 
 namespace PublicSpeechHelperTest
 {
 
-    //TODO use dict for better performance
-    //TODO performance improvements
-    //TODO all rename to parameters
-
-    //TODO parameter testen mit vorgefertigter auswahl
 
     //TODO speech groups multiple input different methods
 
-    //TODO dynamic add remove and enable disable methods
+    //TODO dynamic add/remove and enable disable methods
 
-    [PublicSpeechEnabled]
+    //TODO rename all the event parameter types...
+
+    //TODO enable all disable command (on/off like xbox on/ xbox off)
+
+    [SpeechEnabled]
     public partial class Form1 : Form
     {
 
-        private PublicSpeechHelper.PublicSpeechHelper helper;
+        private readonly SpeechHelper helper;
 
-        private SpSharedRecoContext recognitionContext = null;
-        private ISpRecoGrammar recognitionGrammar = null;
 
         public Form1()
         {
             InitializeComponent();
 
+            
 
             var clt = CultureInfo.CurrentCulture;
             
             var vlt = clt.DisplayName;
 
-            helper = new PublicSpeechHelper.PublicSpeechHelper("de-de");
-            helper.SetInputCulture(CultureInfo.GetCultureInfo("de-DE"));
+            helper = new SpeechHelper("de-de");
 
-            helper.GatherCommands(Assembly.GetExecutingAssembly());
-            helper.RebuildCommands();
+            //grab some speech methods
+            //helper.GatherCommands(Assembly.GetExecutingAssembly());
+            helper.GatherCommands(typeof(Form1), this);
+
+            //helper.AddSimpleCommand("de-de", "abbrechen");
+
+            //build the speech recognition (words)
+            helper.RebuildAllCommands();
+
+
             helper.OnTextRecognized.Subscribe(p =>
             {
                 listBox1.Items.Add(p.Text);
-                helper.Speak("ok");
+                listBox1.SelectedIndex = listBox1.Items.Count - 1;
+                //helper.Speak("ok");
             });
 
-            helper.OnUserInvokeMethod.Subscribe(method =>
+            helper.OnListeningParameters.Subscribe(tuple =>
             {
-                method.Invoke(this, null);
+                helper.Speak("jetzt die parameter");
+
             });
 
+            helper.OnParameterRecognized.Subscribe(p =>
+            {
+                helper.Speak("wert für " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " wird erwartet");
+            });
+
+            helper.OnParameterFinished.Subscribe(p =>
+            {
+                //helper.
+                helper.Speak("parameter " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " fertig");
+            });
+
+            helper.OnBeforeMethodInvoked.Subscribe(p =>
+            {
+                //p.Method.
+                //helper.Speak("methode wird ausgeführt");
+            });
+
+            helper.OnLastParameterFinished.Subscribe(p =>
+            {
+                helper.Speak("methode " + p.RecognizedText + " wird jetzt ausgeführt");
+            });
+
+
         }
 
-        [PublicSpeechMethod("de-de", "test")]
-        public void TestMethod0()
+        [SpeechMethod("de-de", "test", Key = "1")]
+        public void TestMethod0(
+            [SpeechParameter("de-de","x","setzte x gleich")] 
+            int x,
+            [SpeechParameter("de-de", "y", "setzte x gleich")] 
+            int y
+            )
         {
-            textBox1.Text += @"Das ist nur ein Test!" + Environment.NewLine;
+            textBox1.Text += @"Das ist nur ein Test (" + x + @", " + y + @")!" + Environment.NewLine;
         }
 
-        [PublicSpeechMethod("de-de", "leeren")]
+        [SpeechMethod("de-de", "test2", Key = "2")]
+        public void TestMethod9()
+        {
+            textBox1.Text += @"Das ist nur ein Test2!" + Environment.NewLine;
+        }
+
+        [SpeechMethod("de-de", "leeren")]
         public void TestMethod1()
         {
             textBox1.Clear();
         }
 
+        [SpeechMethod("de-de", "stopp")]
+        public void s1()
+        {
+            helper.Speak("stoppe");
+            helper.StopListening();
+            this.Text = "Stopped";
+        }
 
-        [PublicSpeechMethod("de-de", "fenster schließen", "exit", "ende")]
+        [SpeechMethod("de-de", "fenster schließen", "exit", "ende")]
         public void TestMethod2()
         {
             helper.Speak("bis zum nächsten mal ...");
             this.Close();
         }
 
-        [PublicSpeechMethod("de-de", "sage etwas")]
+        [SpeechMethod("de-de", "sage etwas")]
         public void TestMethod3()
         {
             helper.Speak("was soll ich sagen?");
         }
 
-        [PublicSpeechMethod("de-de", "was kann ich sagen", "hilfe")]
+        [SpeechMethod("de-de", "was kann ich sagen", "hilfe")]
         public void TestMethod4()
         {
-            //textBox1.Clear();
-            foreach (var publicSpeechMethod in helper.Commands[helper.CurrentCulture])
+            textBox1.Clear();
+            foreach (var publicSpeechMethod in helper.AllCommands.Commands[helper.CurrentInputCulture])
             {
                 textBox1.Text += "Methode: " + Environment.NewLine;
 
-                foreach (var speechName in publicSpeechMethod.SpeechNames)
-                {
-                    textBox1.Text +=  '\t' + speechName + Environment.NewLine;
-                }
+
+                textBox1.Text += '\t' + publicSpeechMethod.Key + " (" + publicSpeechMethod.Value.Count + ")" + Environment.NewLine;
                 
+
             }
         }
 
         private void btnStart_Click(object sender, EventArgs e)
         {
+            helper.Speak("starte");
             helper.StartListening();
             this.Text = "Listening...";
         }
 
         private void btnStop_Click(object sender, EventArgs e)
         {
+            helper.Speak("stoppe");
             helper.StopListening();
             this.Text = "Stopped";
         }

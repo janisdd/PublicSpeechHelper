@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Speech.Recognition;
 
-namespace PublicSpeechHelper
+namespace PublicSpeechHelper.SpeechApi
 {
-    public class PublicSpeechRecognitionArgs
+    public class SpeechRecognitionArgs
     {
+        /// <summary>
+        /// the original args from the speech api
+        /// </summary>
+        public readonly SpeechRecognizedEventArgs OriginalArgs;
 
         /// <summary>
         /// gets the recognized text
@@ -18,9 +19,10 @@ namespace PublicSpeechHelper
         /// </summary>
         public bool CancelFurtherCommands { get; set; }
 
-        public PublicSpeechRecognitionArgs(string text)
+        public SpeechRecognitionArgs(string text, SpeechRecognizedEventArgs originalArgs)
         {
             Text = text;
+            this.OriginalArgs = originalArgs;
             this.CancelFurtherCommands = false;
         }
     }

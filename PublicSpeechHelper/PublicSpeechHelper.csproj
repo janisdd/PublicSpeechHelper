@@ -30,10 +30,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Interop.SpeechLib">
-      <HintPath>..\..\..\..\..\C#Helpers\Speech\Interop.SpeechLib.dll</HintPath>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Reactive.Core, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -60,14 +56,24 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="PublicSpeechArgument.cs" />
-    <Compile Include="PublicSpeechArgumentAttribute.cs" />
-    <Compile Include="PublicSpeechEnabled.cs" />
-    <Compile Include="PublicSpeechMethod.cs" />
-    <Compile Include="PublicSpeechMethodAttribute.cs" />
-    <Compile Include="PublicSpeechHelper.cs" />
+    <Compile Include="Helpers\Crawler.cs" />
+    <Compile Include="Helpers\ExecutingState.cs" />
+    <Compile Include="Helpers\SpeechDictionary.cs" />
+    <Compile Include="Helpers\SpeechGroupTuple.cs" />
+    <Compile Include="Helpers\SpeechParameterInfo.cs" />
+    <Compile Include="Helpers\SpeechParameterStream.cs" />
+    <Compile Include="Helpers\SpeechStream.cs" />
+    <Compile Include="Helpers\SpeechTuple.cs" />
+    <Compile Include="Helpers\SpeechTupleArgs.cs" />
+    <Compile Include="SpeechApi\SpeechParameter.cs" />
+    <Compile Include="SpeechApi\SpeechParameterAttribute.cs" />
+    <Compile Include="SpeechApi\SpeechEnabledAttribute.cs" />
+    <Compile Include="SpeechApi\SpeechMethod.cs" />
+    <Compile Include="SpeechApi\SpeechMethodAttribute.cs" />
+    <Compile Include="SpeechApi\SpeechRecognitionConflictArgs.cs" />
+    <Compile Include="SpeechHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="PublicSpeechRecognitionArgs.cs" />
+    <Compile Include="SpeechApi\SpeechRecognitionArgs.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
