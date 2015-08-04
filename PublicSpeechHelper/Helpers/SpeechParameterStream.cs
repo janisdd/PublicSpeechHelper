@@ -19,13 +19,13 @@ namespace PublicSpeechHelper.Helpers
         public SpeechParameterInfo SpeechParameterInfo { get; set; }
 
         /// <summary>
-        /// the text the parameter was recognized
+        /// the text with the parameter was recognized
         /// </summary>
-        public string RecognizedText { get; set; }
+        public string RecognizedParameterNameText { get; set; }
 
-        public SpeechParameterStream(string recognizedText, SpeechTuple speechTuple, SpeechParameterInfo speechParameterInfo)
+        public SpeechParameterStream(string recognizedParameterNameText, SpeechTuple speechTuple, SpeechParameterInfo speechParameterInfo)
         {
-            this.RecognizedText = recognizedText;
+            this.RecognizedParameterNameText = recognizedParameterNameText;
             this.SpeechTuple = speechTuple;
             this.SpeechParameterInfo = speechParameterInfo;
         }

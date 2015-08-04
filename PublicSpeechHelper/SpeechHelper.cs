@@ -17,7 +17,7 @@ namespace PublicSpeechHelper
     /// <para />
     /// after changing the language rebuild the commands!
     /// </summary>
-    public class  SpeechHelper
+    public class SpeechHelper
     {
 
         public int NumbersFrom = 0;
@@ -26,7 +26,7 @@ namespace PublicSpeechHelper
         #region events
 
         private readonly Subject<SpeechRecognitionArgs> _OnTextRecognized;
-        private readonly Subject<SpeechTuple> _OnListeningForParameters;
+        private readonly Subject<SpeechStream> _OnListeningForParameters;
 
         private readonly Subject<SpeechParameterStream> _OnParameterRecognized;
         private readonly Subject<SpeechParameterStream> _OnParameterFinished;
@@ -35,8 +35,11 @@ namespace PublicSpeechHelper
         private readonly Subject<SpeechTupleArgs> _OnBeforeMethodInvoked;
         private readonly Subject<SpeechTuple> _OnAfterMethodInvoked;
 
-        public Func<SpeechRecognitionConflictArgs, SpeechTuple> OnResolveCommandConflicFunc;
 
+        /// <summary>
+        /// function called when a parameter value text is recognized, 2. parameter is the string value
+        /// </summary>
+        public Func<SpeechParameterStream, string, object> OnParameterValueConvert;
 
         /// <summary>
         /// occurs when speech to text is recognized (before any command is executed)
@@ -49,11 +52,10 @@ namespace PublicSpeechHelper
             }
         }
 
-
         /// <summary>
         /// occurs when the method was detected and now waiting for parameters
         /// </summary>
-        public IObservable<SpeechTuple> OnListeningParameters
+        public IObservable<SpeechStream> OnListeningParameters
         {
             get
             {
@@ -92,7 +94,7 @@ namespace PublicSpeechHelper
             get
             {
                 return this._OnBeforeMethodInvoked.AsObservable();
-            }   
+            }
         }
 
         /// <summary>
@@ -120,6 +122,11 @@ namespace PublicSpeechHelper
         #endregion
 
 
+        /// <summary>
+        /// the current speech group key or "" to search in every speech group
+        /// </summary>
+        public string CurrentSpeechGroupKey { get; set; }
+
         private SpeechSynthesizer _speaker;
         private SpeechRecognitionEngine _engine;
 
@@ -138,8 +145,6 @@ namespace PublicSpeechHelper
         /// the current speech tuple while asking for parameters
         /// </summary>
         public SpeechStream CurrentSpeechStream { get; set; }
-
-        public List<SpeechParameterStream> CurrentParameters { get; set; }
 
         public SpeechParameterStream CurrentParameter { get; set; }
 
@@ -175,11 +180,11 @@ namespace PublicSpeechHelper
         /// </summary>
         public SpeechHelper()
         {
-            this.CurrentParameters = new List<SpeechParameterStream>();
+
             this.AllCommands = new SpeechDictionary();
             this.State = ExecutingState.NoCommandsLoaded;
             _OnTextRecognized = new Subject<SpeechRecognitionArgs>();
-            _OnListeningForParameters = new Subject<SpeechTuple>();
+            _OnListeningForParameters = new Subject<SpeechStream>();
             _OnParameterRecognized = new Subject<SpeechParameterStream>();
             _OnParameterFinished = new Subject<SpeechParameterStream>();
             _OnBeforeMethodInvoked = new Subject<SpeechTupleArgs>();
@@ -286,7 +291,7 @@ namespace PublicSpeechHelper
         /// <param name="phrase">the phrase</param>
         /// <param name="reloadGrammar">true: automatically reload the grammar, false: user need to call RebuildAllCommands</param>
         /// <returns>true: phrase added, false: phrase was already there</returns>
-        public bool RegisterPlainPhrase(string phrase, bool reloadGrammar = true)
+        public bool RegisterPlainPhrase(string phrase, bool reloadGrammar = false)
         {
             var test = this.AllCommands.PlainPhrases.Add(phrase);
 
@@ -376,48 +381,31 @@ namespace PublicSpeechHelper
         /// <param name="speechTuple">the tuple with all infomration</param>
         private void TryExecuteMethod(SpeechTuple speechTuple, string text)
         {
-            if (speechTuple.Method.MethodInfo.IsStatic == false)
-                if (speechTuple.InvokeInstance == null)
+            if (speechTuple.IsEnabled) //first check if the command is enabled
+            {
+                if (speechTuple.Method.MethodInfo.IsStatic == false)
+                    if (speechTuple.InvokeInstance == null)
+                    {
+                        var obj = Activator.CreateInstance(speechTuple.Method.ExecutingType);
+                        speechTuple.InvokeInstance = obj;
+                    }
+
+                if (speechTuple.Method.Arguments.Count == 0)
                 {
-                    var obj = Activator.CreateInstance(speechTuple.Method.ExecutingType);
-                    speechTuple.InvokeInstance = obj;
+                    //when the method is static speechTuple.InvokeInstance is already null
+                    ExecuteMethod(speechTuple, speechTuple.InvokeInstance, null);
+
                 }
-
-            if (speechTuple.Method.Arguments.Count == 0)
-            {
-                //when the method is static speechTuple.InvokeInstance is already null
-                ExecuteMethod(speechTuple, speechTuple.InvokeInstance, null);
-
-            }
-            else
-            {
-                this.State = ExecutingState.ListeningForParameters;
-                this.CurrentSpeechStream = new SpeechStream(text, speechTuple);
-                _OnListeningForParameters.OnNext(speechTuple);
-            }
-        }
-
-
-        /// <summary>
-        /// we have a method and now we got text for a parameter name -> get the right parameter and set it as the current parameter (we still need a value)
-        /// </summary>
-        /// <param name="parameterSpeechText"></param>
-        private void SetCurrentParameter(string parameterSpeechText)
-        {
-            //get the real parameter out of the method with the parameterSpeechText
-
-            foreach (SpeechParameter speechParameter in this.CurrentSpeechStream.SpeechTuple.Method.Arguments)
-            {
-                if (speechParameter.SpeechNames.Contains(parameterSpeechText))
+                else
                 {
-                    this.CurrentParameter = new SpeechParameterStream(parameterSpeechText, this.CurrentSpeechStream.SpeechTuple, new SpeechParameterInfo(speechParameter));
-                    this.CurrentSpeechStream.SpeechParameterStreams.Add(this.CurrentParameter);
-                    this.State = ExecutingState.ListeningForParameterValue;
-                    this._OnParameterRecognized.OnNext(this.CurrentParameter);
-                    return;
+                    this.State = ExecutingState.ListeningForParameters;
+                    this.CurrentSpeechStream = new SpeechStream(text, speechTuple);
+                    _OnListeningForParameters.OnNext(CurrentSpeechStream);
                 }
             }
         }
+
+
 
         /// <summary>
         /// aborts listening for the current parameter value and sets the state to ListeningForParameters
@@ -434,7 +422,7 @@ namespace PublicSpeechHelper
         public void AbortListeningForParameters()
         {
             this.CurrentParameter = null;
-            this.CurrentParameters.Clear();
+            this.CurrentSpeechStream = null;
 
             if (this.State == ExecutingState.ListeningForParameters)
                 this.State = ExecutingState.ListeningForMethods;
@@ -442,23 +430,123 @@ namespace PublicSpeechHelper
         }
 
         /// <summary>
+        /// we have a method and now we got text for a parameter name -> get the right parameter and set it as the current parameter (we still need a value)
+        /// </summary>
+        /// <param name="parameterSpeechText">the new current parameter name</param>
+        private bool SetCurrentParameter(string parameterSpeechText)
+        {
+            //get the real parameter out of the method with the parameterSpeechText
+
+            foreach (SpeechParameter speechParameter in this.CurrentSpeechStream.SpeechTuple.Method.Arguments)
+            {
+                if (speechParameter.SpeechNames.Contains(parameterSpeechText))
+                {
+                    this.CurrentParameter = new SpeechParameterStream(parameterSpeechText, this.CurrentSpeechStream.SpeechTuple, new SpeechParameterInfo(speechParameter));
+
+                    SpeechParameterStream copy = null;
+                    //1. look if there is already a old value for this parameter
+                    //2. check if the parameter value is empty in this case the user just switched to another parameter
+                    for (int i = 0; i < this.CurrentSpeechStream.SpeechParameterStreams.Count; i++)
+                    {
+                        var speechParameterStream = this.CurrentSpeechStream.SpeechParameterStreams[i];
+
+                        //check if there is a speech parameter info
+                        if (speechParameterStream.SpeechParameterInfo.Parameter.ParameterInfo.Name == speechParameter.ParameterInfo.Name)
+                        {
+                            copy = speechParameterStream;
+                        }
+                        if (speechParameterStream.SpeechParameterInfo.Value == null)
+                        {
+                            this.CurrentSpeechStream.SpeechParameterStreams.RemoveAt(i);
+                            i--;
+                        }
+
+                    }
+
+                    if (copy != null)
+                        this.CurrentSpeechStream.SpeechParameterStreams.Remove(copy);
+
+                    this.CurrentSpeechStream.SpeechParameterStreams.Add(this.CurrentParameter);
+
+
+                    this.State = ExecutingState.ListeningForParameterValue;
+                    this._OnParameterRecognized.OnNext(this.CurrentParameter);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// finishes the current parameter (assigns value) and if this was the last param then executes the current method
         /// </summary>
         /// <param name="valueText"></param>
-        private void FinishCurrentParameter(string valueText)
+        private bool FinishCurrentParameter(string valueText)
         {
 
-            int i;
-            if (int.TryParse(valueText, out i))
+            if (OnParameterValueConvert != null)
             {
-                this.CurrentParameter.SpeechParameterInfo.Value = i;
-                this.CurrentParameters.Add(this.CurrentParameter);
-                this._OnParameterFinished.OnNext(this.CurrentParameter);
+                if (this.State == ExecutingState.ListeningForParameters)
+                {
+                    //check the first left parameter
+                    //parameter name was left out
+
+                    int leftParameterIndex = -1;
+
+                    for (int i = 0; i < this.CurrentSpeechStream.SpeechTuple.Method.Arguments.Count; i++)
+                    {
+                        var arg = this.CurrentSpeechStream.SpeechTuple.Method.Arguments[i];
+                        if (
+                            this.CurrentSpeechStream.SpeechParameterStreams.Any(
+                                p => p.SpeechParameterInfo.Parameter.ParameterInfo.Name == arg.ParameterInfo.Name) == false)
+                        {
+                            leftParameterIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (leftParameterIndex != -1)
+                        this.CurrentParameter = new SpeechParameterStream("", this.CurrentSpeechStream.SpeechTuple,
+                            new SpeechParameterInfo(this.CurrentSpeechStream.SpeechTuple.Method.Arguments[leftParameterIndex]));
+
+                }
+
+                object erg = OnParameterValueConvert(this.CurrentParameter, valueText);
+
+                if (erg != null)
+                {
+                    this.CurrentParameter.SpeechParameterInfo.Value = erg;
+
+
+                    if (this.State == ExecutingState.ListeningForParameters) //only add if the parameter name was left out
+                    {
+                        this.CurrentSpeechStream.SpeechParameterStreams.Add(this.CurrentParameter);
+                    }
+
+                    this._OnParameterFinished.OnNext(this.CurrentParameter);
+                }
+                else
+                    return false;
+            }
+            else
+            {
+                throw new Exception("OnParameterValueConvert was not set so the parameter value: " + valueText + " for parameter " +
+                    this.CurrentParameter.RecognizedParameterNameText + "(real name: " + this.CurrentParameter.SpeechParameterInfo.Parameter.ParameterInfo.Name +
+                    ") couldnt be converted");
+
+                //currently only ints
+                //int i;
+                //if (int.TryParse(valueText, out i))
+                //{
+                //    this.CurrentParameter.SpeechParameterInfo.Value = i;
+                //    this.CurrentParameters.Add(this.CurrentParameter);
+                //    this._OnParameterFinished.OnNext(this.CurrentParameter);
+                //}
             }
 
 
             //now check if this was the last parameter...
-            if (this.CurrentParameters.Count == this.CurrentSpeechStream.SpeechTuple.Method.Arguments.Count)
+            if (this.CurrentSpeechStream.SpeechParameterStreams.Count == this.CurrentSpeechStream.SpeechTuple.Method.Arguments.Count)
             {
                 //we have all parameters...
                 if (this.CurrentSpeechStream.SpeechTuple.Method.MethodInfo.IsStatic == false)
@@ -475,7 +563,7 @@ namespace PublicSpeechHelper
                 foreach (var speechParameter in this.CurrentSpeechStream.SpeechTuple.Method.Arguments)
                 {
                     SpeechParameterStream speechParameterInfo =
-                        this.CurrentParameters.FirstOrDefault(
+                        this.CurrentSpeechStream.SpeechParameterStreams.FirstOrDefault(
                             p => p.SpeechParameterInfo.Parameter.ParameterInfo.Name == speechParameter.ParameterInfo.Name);
 
                     if (speechParameterInfo != null)
@@ -499,6 +587,8 @@ namespace PublicSpeechHelper
                 this.State = ExecutingState.ListeningForParameters;
             }
 
+            return true;
+
         }
 
         private void EngineOnSpeechRecognized(object sender, SpeechRecognizedEventArgs speechRecognizedEventArgs)
@@ -507,29 +597,28 @@ namespace PublicSpeechHelper
             this._OnTextRecognized.OnNext(token);
 
             //first look for simple methods could contain some abort methods... through this.State
-            LookForSimpleCommands(token.Text);
+            if (LookForSimpleCommands(token.Text))
+                return;
 
 
             if (this.State == ExecutingState.ListeningForParameters)
             {
-                //this is actually a parameter ...
-                SetCurrentParameter(token.Text);
+                //parameter name could be left out
+                if (SetCurrentParameter(token.Text) == false)
+                    FinishCurrentParameter(token.Text); //maybe we left the parameter name out
+
             }
             else if (this.State == ExecutingState.ListeningForParameterValue)
             {
-                FinishCurrentParameter(token.Text);
+                if (FinishCurrentParameter(token.Text) == false)
+                    SetCurrentParameter(token.Text);
+
             }
             else
             {
                 if (token.CancelFurtherCommands == false)
-                {
-                    //TODO check for disabled methods
                     LookForCommands(token.Text);
-                }
-
             }
-
-
 
         }
 
@@ -539,17 +628,26 @@ namespace PublicSpeechHelper
         /// <summary>
         /// executes simple commands if any matches the text
         /// </summary>
-        /// <param name="text"></param>
-        private void LookForSimpleCommands(string text)
+        /// <param name="text">the command text to look for</param>
+        /// <returns>true: command found, false: not found or disabled</returns>
+        private bool LookForSimpleCommands(string text)
         {
-            Dictionary<string, Action> simpleCommands;
+            Dictionary<string, SimpleCommandTuple> simpleCommands;
 
-            if (this.AllCommands.SimpleMethodPhrases.TryGetValue(this._currentInputCulture, out simpleCommands))
+            if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleCommands))
             {
-                Action action;
-                if (simpleCommands.TryGetValue(text, out action))
-                    action();
+                SimpleCommandTuple cmd;
+                if (simpleCommands.TryGetValue(text, out cmd))
+                {
+                    if (cmd.IsEnabled)
+                    {
+                        cmd.Action();
+                        return true;
+                    }
+                }
             }
+
+            return false;
         }
 
         /// <summary>
@@ -559,39 +657,45 @@ namespace PublicSpeechHelper
         private void LookForCommands(string text)
         {
             //look for commands
-            Dictionary<string, Dictionary<string, SpeechTuple>> langCommands;
+            Dictionary<string, SpeechGroupTuple> speechGroups;
 
-            if (this.AllCommands.Commands.TryGetValue(this._currentInputCulture, out langCommands))
+            if (this.AllCommands.Commands.TryGetValue(this._currentInputCulture, out speechGroups))
             {
 
-                Dictionary<string, SpeechTuple> homophoneCommands;
-                if (langCommands.TryGetValue(text, out homophoneCommands))
+                if (string.IsNullOrEmpty(CurrentSpeechGroupKey) == false)
                 {
-                    var enabledSpeechTuples = new List<SpeechTuple>();
-                    foreach (var homophoneCommand in homophoneCommands)
+                    //only search in the current speech group
+                    SpeechGroupTuple speechGroup;
+                    if (speechGroups.TryGetValue(CurrentSpeechGroupKey, out speechGroup))
                     {
-                        if (homophoneCommand.Value.IsEnabled)
-                            enabledSpeechTuples.Add(homophoneCommand.Value);
-                    }
-
-                    if (enabledSpeechTuples.Count == 1)
-                    {
-                        TryExecuteMethod(enabledSpeechTuples[0], text);
-                    }
-                    else
-                    {
-                        //let the use decide
-                        if (this.OnResolveCommandConflicFunc != null)
+                        if (speechGroup.IsEnabled)
                         {
-                            var resolvedSpeechTuple = this.OnResolveCommandConflicFunc(new SpeechRecognitionConflictArgs(text, enabledSpeechTuples.ToArray()));
-                            TryExecuteMethod(resolvedSpeechTuple, text);
-                        }
-                        else
-                        {
-                            //TODO maybe add some standard handling
+                            SpeechTuple speechTuple;
+                            if (speechGroup.Commands.TryGetValue(text, out speechTuple))
+                            {
+                                if (speechTuple.IsEnabled)
+                                    TryExecuteMethod(speechTuple, text);
+                            }
                         }
                     }
                 }
+                else
+                {
+                    //search in every enabled speech group
+                    foreach (var speechGroupTuple in speechGroups)
+                    {
+                        if (speechGroupTuple.Value.IsEnabled)
+                        {
+                            SpeechTuple speechTuple;
+                            if (speechGroupTuple.Value.Commands.TryGetValue(text, out speechTuple))
+                            {
+                                if (speechTuple.IsEnabled)
+                                    TryExecuteMethod(speechTuple, text);
+                            }
+                        }
+                    }
+                }
+
             }
         }
 
@@ -601,10 +705,12 @@ namespace PublicSpeechHelper
         /// <param name="lang">the language</param>
         /// <param name="text">the phrase unique for the language</param>
         /// <param name="action">the action to perfrom when the phrase is recognized</param>
+        /// <param name="key">the key for later access (if empty the text is used as unique key)</param>
         public void AddSimpleCommand(string lang, string text, Action action)
         {
             this.AllCommands.AddSimpleCommand(lang, text, action);
         }
+
 
         /// <summary>
         /// reloads the current grammar
@@ -639,15 +745,10 @@ namespace PublicSpeechHelper
             //just add some common numbers
             var choices = new Choices();
 
-            Dictionary<string, Action> simpleMethods;
-
-            if (this.AllCommands.SimpleMethodPhrases.TryGetValue(this._currentInputCulture, out simpleMethods))
-                foreach (var speechName in simpleMethods.Keys)
-                    choices.Add(speechName);
-
 
             for (int i = this.NumbersFrom; i <= this.NumbersTo; i++)
                 this.AllCommands.PlainPhrases.Add(i.ToString());
+
 
             //first add plain phrases
             foreach (var plainPhrase in this.AllCommands.PlainPhrases)
@@ -655,33 +756,45 @@ namespace PublicSpeechHelper
 
 
 
-            //var t = choices0.ToGrammarBuilder();
+            Dictionary<string, SimpleCommandTuple> simpleMethods;
+
+            if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleMethods))
+                foreach (var speechName in simpleMethods.Keys)
+                    choices.Add(speechName);
+
+
 
             //add every method
             //1. language, 2. [1. speech name, 2. [1. method key, 2. (method)]]
 
-            Dictionary<string, Dictionary<string, SpeechTuple>> langCommands;
+            Dictionary<string, SpeechGroupTuple> langCommands;
+
+
+            var knownParameters = new HashSet<string>();
 
             if (this.AllCommands.Commands.TryGetValue(this._currentInputCulture, out langCommands))
             {
-                foreach (KeyValuePair<string, Dictionary<string, SpeechTuple>> speechNamePair in this.AllCommands.Commands[this._currentInputCulture])
+                foreach (var speechNamePair in langCommands)
                 {
-                    //[1. speech name, 2. [1. method key, 2. (method)]]
+                    //[1. speech group name, 2. [1. method speech name, 2. (method)]]
 
-                    choices.Add(speechNamePair.Key);
-
-                    //add all parameters
-
-                    foreach (KeyValuePair<string, SpeechTuple> speechTuple in speechNamePair.Value)
+                    foreach (var speechTuple in speechNamePair.Value.Commands)
                     {
-                        //speechTuple.Key - the method key
+                        //add because synonyms has different speech names
+                        choices.Add(speechTuple.Key);
+
+                        //add all parameters
+
                         //add every parameter of the method
                         foreach (SpeechParameter publicSpeechArgument in speechTuple.Value.Method.Arguments)
                             foreach (var paramSpeechName in publicSpeechArgument.SpeechNames) //parameter could have synonyms
                             {
-                                choices.Add(paramSpeechName);
+                                if (knownParameters.Add(paramSpeechName)) // true = added
+                                    choices.Add(paramSpeechName);
                             }
                     }
+
+
                 }
 
                 this._currentChoices = choices;
@@ -692,6 +805,39 @@ namespace PublicSpeechHelper
             return false;
 
         }
+
+
+        /// <summary>
+        /// enables or disables a simple command
+        /// </summary>
+        /// <param name="lang">the language</param>
+        /// <param name="text">the text</param>
+        /// <param name="isEnabled">true: command is processed, false: not</param>
+        public bool ChangeSimpleCommand(string lang, string text, bool isEnabled)
+        {
+            return this.AllCommands.ChangeSimpleCommand(lang, text, isEnabled);
+        }
+
+        /// <summary>
+        /// enables or disables a command
+        /// </summary>
+        /// <param name="key">the method key</param>
+        /// <param name="isEnabled">true: command will be processed, false: not</param>
+        public bool ChangeCommand(string key, bool isEnabled)
+        {
+            return this.AllCommands.ChangeCommand(key, isEnabled);
+        }
+
+        /// <summary>
+        /// enables or disables a speech group
+        /// </summary>
+        /// <param name="groupKey">the group key</param>
+        /// <param name="isEnabled">true: commands will be processed, false: not</param>
+        public bool ChangeSpeechGroup(string groupKey, bool isEnabled)
+        {
+            return this.AllCommands.ChangeSpeechGroup(groupKey, isEnabled);
+        }
+
 
         private Grammar CreateColorGrammar()
         {
@@ -743,6 +889,7 @@ namespace PublicSpeechHelper
             _engine.RecognizeAsyncStop();
             State = ExecutingState.NotListening;
         }
+
 
 
         #endregion

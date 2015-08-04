@@ -17,14 +17,14 @@ namespace PublicSpeechHelper.Helpers
         public bool IsEnabled { get; set; }
 
         /// <summary>
-        /// all methods in this group
+        /// all commands in this group
         /// </summary>
-        public List<SpeechTuple> Methods { get; set; }
+        public Dictionary<string, SpeechTuple> Commands { get; set; }
 
-        public SpeechGroupTuple(bool isEnabled, params SpeechTuple[] methods)
+        public SpeechGroupTuple(bool isEnabled)
         {
             this.IsEnabled = isEnabled;
-            this.Methods = methods.ToList();
+            Commands = new Dictionary<string, SpeechTuple>();
         }
     }
 }
