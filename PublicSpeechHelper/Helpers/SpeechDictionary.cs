@@ -12,19 +12,17 @@ namespace PublicSpeechHelper.Helpers
     public class SpeechDictionary
     {
         /// <summary>
-        /// all aviable commands
+        /// all normal (complex) commands
         /// <para />
         /// 1. language, 2. [1. speech group name, 2. [1. speech name, 2. (method)]]
-        /// <para />
-        /// e.g. 1. de-de, 2. [1. goto group , [(1. goto1, 2. goto item ... 1) ; (1. goto2, 2. goto item ... 2)]]
         /// </summary>
         public Dictionary<string, Dictionary<string, SpeechGroupTuple>> Commands { get; set; }
 
         /// <summary>
         /// a list of simple commands
-        /// //1. language, 2. [1. speech text, 2. method]
+        /// 1. language, 2. [1. speech group name, [1. speech name, 2. method]]
         /// </summary>
-        public Dictionary<string, Dictionary<string, SimpleCommandTuple>> SimpleCommands { get; set; }
+        public Dictionary<string, Dictionary<string, SimpleSpeechGroupTuple>> SimpleCommands { get; set; }
 
         /// <summary>
         /// just some plain phrases to look for
@@ -38,63 +36,106 @@ namespace PublicSpeechHelper.Helpers
         {
             Commands = new Dictionary<string, Dictionary<string, SpeechGroupTuple>>();
             PlainPhrases = new HashSet<string>();
-            SimpleCommands = new Dictionary<string, Dictionary<string, SimpleCommandTuple>>();
+            SimpleCommands = new Dictionary<string, Dictionary<string, SimpleSpeechGroupTuple>>();
         }
 
 
 
         #region all commands
 
-
         /// <summary>
         /// adds a simple method to execute
         /// </summary>
         /// <param name="lang">the language</param>
         /// <param name="text">the phrase a unique text for the language</param>
+        /// <param name="simpleSpeechGroupKey">the simple speech group key for this simple command</param>
         /// <param name="action">the action to perfrom when the phrase is recognized</param>
-        public void AddSimpleCommand(string lang, string text, Action action)
+        public void AddSimpleCommand(string lang, string text, string simpleSpeechGroupKey, Action action)
         {
-            if (SimpleCommands.ContainsKey(lang) == false)
+            Dictionary<string, SimpleSpeechGroupTuple> langSpeechGroups;
+
+            if (this.SimpleCommands.TryGetValue(lang, out langSpeechGroups) == false)
             {
-                var simpleCommands = new Dictionary<string, SimpleCommandTuple>();
-                simpleCommands.Add(text, new SimpleCommandTuple(action, true));
-                SimpleCommands.Add(lang, simpleCommands);
+                //no language tuple for simple commands
+                langSpeechGroups = new Dictionary<string, SimpleSpeechGroupTuple>();
+                this.SimpleCommands.Add(lang, langSpeechGroups);
             }
-            else
+
+            SimpleSpeechGroupTuple simpleSpeechGroup;
+            if (langSpeechGroups.TryGetValue(simpleSpeechGroupKey, out simpleSpeechGroup) == false)
             {
-                var methods = SimpleCommands[lang];
-                if (methods.ContainsKey(text) == false)
-                {
-                    methods.Add(text, new SimpleCommandTuple(action, true));
-                }
-                else
-                    throw new Exception("speech dictionary already contains a simple method: " + text + " on language: " + lang);
+                //no speech group with this key here
+                simpleSpeechGroup = new SimpleSpeechGroupTuple(true);
+                langSpeechGroups.Add(simpleSpeechGroupKey, simpleSpeechGroup);
             }
+
+
+            if (simpleSpeechGroup.Commands.ContainsKey(text))
+            {
+                throw new Exception("speech dictionary already contains a simple method: " + text + "on speech group: " + 
+                    simpleSpeechGroupKey + " on language: " + lang);
+            }
+
+            simpleSpeechGroup.Commands.Add(text, new SimpleCommandTuple(action, true));
         }
 
         /// <summary>
-        /// enables or disables a simple command
+        /// enables or disables a simple command with this text
         /// </summary>
         /// <param name="lang">the language</param>
         /// <param name="text">the text</param>
         /// <param name="isEnabled">true: command is processed, false: not</param>
         public bool ChangeSimpleCommand(string lang, string text, bool isEnabled)
         {
-            Dictionary<string, SimpleCommandTuple> langSimpleCommands;
-            if (SimpleCommands.TryGetValue(lang, out langSimpleCommands))
+            bool found = false;
+            foreach (var speechGroup in this.SimpleCommands.Values)
             {
-                SimpleCommandTuple simpleCommand;
-                if (langSimpleCommands.TryGetValue(text, out simpleCommand))
+                foreach (var speechMethod in speechGroup.Values)
                 {
-                    simpleCommand.IsEnabled = isEnabled;
-                    return true;
+                    foreach (KeyValuePair<string, SimpleCommandTuple> speechTuple in speechMethod.Commands)
+                    {
+                        //speechTuple.Key is the speech name
+                        if (speechTuple.Key == text)
+                        {
+                            speechTuple.Value.IsEnabled = false;
+                            found = true;
+                        }
+                    }
                 }
             }
-            return false;
+
+            return found;
         }
 
         /// <summary>
-        /// enables or disables a command
+        /// enables or disables a simple speech group
+        /// </summary>
+        /// <param name="lang">the language</param>
+        /// <param name="simpleGroupKey">the group key</param>
+        /// <param name="isEnabled">true: commands will be processed, false: not</param>
+        public bool ChangeSimpleSpeechGroup(string lang, string simpleGroupKey, bool isEnabled)
+        {
+            bool found = false;
+
+            Dictionary<string, SimpleSpeechGroupTuple> langCommands;
+
+            if (this.SimpleCommands.TryGetValue(lang, out langCommands))
+            {
+                foreach (var speechMethod in langCommands)
+                {
+                    if (speechMethod.Key == simpleGroupKey)
+                    {
+                        speechMethod.Value.IsEnabled = false;
+                        found = true;
+                    }
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// enables or disables all commands with this key
         /// </summary>
         /// <param name="key">the method key</param>
         /// <param name="isEnabled">true: command will be processed, false: not</param>
@@ -105,9 +146,10 @@ namespace PublicSpeechHelper.Helpers
             {
                 foreach (var speechMethod in speechGroup.Values)
                 {
-                    foreach (var speechTuple in speechMethod.Commands)
+                    foreach (KeyValuePair<string, SpeechTuple> speechTuple in speechMethod.Commands)
                     {
-                        if (speechTuple.Key == key)
+                        //speechTuple.key is the speech name
+                        if (speechTuple.Value.Method.Key == key)
                         {
                             speechTuple.Value.IsEnabled = false;
                             found = true;
@@ -151,7 +193,7 @@ namespace PublicSpeechHelper.Helpers
         /// <param name="invokeInstance">the instance to invoke the method on (or null for static methods)</param>
         public void AddMethod(SpeechMethod method, object invokeInstance)
         {
-           Dictionary<string, SpeechGroupTuple> langCommands;
+            Dictionary<string, SpeechGroupTuple> langCommands;
 
             //create lang if not exists
             if (Commands.TryGetValue(method.Lang, out langCommands) == false)
@@ -170,9 +212,6 @@ namespace PublicSpeechHelper.Helpers
                 speechGroup = new SpeechGroupTuple(true);
                 langCommands.Add(method.SpeechGroupKey, speechGroup);
             }
-
-            //add all synonyms
-
 
             //check all synonyms
 

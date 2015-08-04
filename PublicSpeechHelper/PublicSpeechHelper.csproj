@@ -59,6 +59,7 @@
     <Compile Include="Helpers\Crawler.cs" />
     <Compile Include="Helpers\ExecutingState.cs" />
     <Compile Include="Helpers\SimpleCommandTuple.cs" />
+    <Compile Include="Helpers\SimpleSpeechGroupTuple.cs" />
     <Compile Include="Helpers\SpeechDictionary.cs" />
     <Compile Include="Helpers\SpeechGroupTuple.cs" />
     <Compile Include="Helpers\SpeechMethodStream.cs" />

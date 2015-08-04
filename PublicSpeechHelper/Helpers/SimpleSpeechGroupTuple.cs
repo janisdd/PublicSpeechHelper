@@ -2,14 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using PublicSpeechHelper.SpeechApi;
 
 namespace PublicSpeechHelper.Helpers
 {
-    /// <summary>
-    /// a SpeechGroupTuple
-    /// </summary>
-    public class SpeechGroupTuple
+    public class SimpleSpeechGroupTuple
     {
         /// <summary>
         /// true: group is enabled, false: not
@@ -18,14 +14,13 @@ namespace PublicSpeechHelper.Helpers
 
         /// <summary>
         /// all commands in this group
-        /// 1. speech name, 2. method
         /// </summary>
-        public Dictionary<string, SpeechTuple> Commands { get; set; }
+        public Dictionary<string, SimpleCommandTuple> Commands { get; set; }
 
-        public SpeechGroupTuple(bool isEnabled)
+        public SimpleSpeechGroupTuple(bool isEnabled)
         {
             this.IsEnabled = isEnabled;
-            Commands = new Dictionary<string, SpeechTuple>();
+            Commands = new Dictionary<string, SimpleCommandTuple>();
         }
     }
 }

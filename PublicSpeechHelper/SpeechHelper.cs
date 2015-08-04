@@ -127,7 +127,12 @@ namespace PublicSpeechHelper
         /// </summary>
         public string CurrentSpeechGroupKey { get; set; }
 
-        private SpeechSynthesizer _speaker;
+        /// <summary>
+        /// the current simple speech group key or "" to search in every simple speech group
+        /// </summary>
+        public string CurrentSimpleSpeechGroupKey { get; set; }
+
+        private readonly SpeechSynthesizer _speaker;
         private SpeechRecognitionEngine _engine;
 
 
@@ -146,6 +151,9 @@ namespace PublicSpeechHelper
         /// </summary>
         public SpeechStream CurrentSpeechStream { get; set; }
 
+        /// <summary>
+        /// the current parameter
+        /// </summary>
         public SpeechParameterStream CurrentParameter { get; set; }
 
 
@@ -252,13 +260,13 @@ namespace PublicSpeechHelper
         }
 
         /// <summary>
-        /// crawls the given method (attributes still needed) and adds it the 
+        /// crawls the given method (attributes still needed) and adds it to the speech dictionary 
         /// </summary>
         /// <param name="methodInfo">the method to crawl</param>
         /// <param name="invokingInstance">the instance to invoke the speech methods or null to create one with the parameterless constructor (
         /// static methods doesnt need a invoking instance so leave this null)</param>
         /// <param name="reloadGrammarIfNeeded">true: automatically reload the grammar, false: user need to call RebuildAllCommands</param>
-        public void AddCommand(MethodInfo methodInfo, object invokingInstance = null, bool reloadGrammarIfNeeded = true)
+        public void AddCommand(MethodInfo methodInfo, object invokingInstance = null, bool reloadGrammarIfNeeded = false)
         {
             var commands = new List<SpeechMethod>();
             Crawler.CrawMethods(methodInfo.DeclaringType, commands, methodInfo);
@@ -286,12 +294,12 @@ namespace PublicSpeechHelper
 
 
         /// <summary>
-        /// registers a plain phrase to look for
+        /// adds a plain phrase to look for
         /// </summary>
         /// <param name="phrase">the phrase</param>
         /// <param name="reloadGrammar">true: automatically reload the grammar, false: user need to call RebuildAllCommands</param>
         /// <returns>true: phrase added, false: phrase was already there</returns>
-        public bool RegisterPlainPhrase(string phrase, bool reloadGrammar = false)
+        public bool AddPlainPhrase(string phrase, bool reloadGrammar = false)
         {
             var test = this.AllCommands.PlainPhrases.Add(phrase);
 
@@ -309,6 +317,15 @@ namespace PublicSpeechHelper
         #region speech helping region
 
         #region text to speech (output)
+
+        /// <summary>
+        /// sets the volume of the voice
+        /// </summary>
+        /// <param name="volume">the volume between 0 and 100</param>
+        public void SetVoiceVolume(int volume)
+        {
+            _speaker.Volume = 100;
+        }
 
         /// <summary>
         /// configures the current voice
@@ -379,7 +396,8 @@ namespace PublicSpeechHelper
         /// executes a method and sets the state to ListeningForParameters if the method requires parameters
         /// </summary>
         /// <param name="speechTuple">the tuple with all infomration</param>
-        private void TryExecuteMethod(SpeechTuple speechTuple, string text)
+        /// <param name="recognizedMethodText"></param>
+        private void TryExecuteMethod(SpeechTuple speechTuple, string recognizedMethodText)
         {
             if (speechTuple.IsEnabled) //first check if the command is enabled
             {
@@ -399,7 +417,7 @@ namespace PublicSpeechHelper
                 else
                 {
                     this.State = ExecutingState.ListeningForParameters;
-                    this.CurrentSpeechStream = new SpeechStream(text, speechTuple);
+                    this.CurrentSpeechStream = new SpeechStream(recognizedMethodText, speechTuple);
                     _OnListeningForParameters.OnNext(CurrentSpeechStream);
                 }
             }
@@ -417,7 +435,9 @@ namespace PublicSpeechHelper
         }
 
         /// <summary>
-        /// aborts listening for parameters if that was the current state and sets the state to ListeningForMethods
+        /// aborts listening for parameters 
+        /// <para />
+        /// if ListeningForParameters was the current state and then the state is set to ListeningForMethods
         /// </summary>
         public void AbortListeningForParameters()
         {
@@ -460,7 +480,6 @@ namespace PublicSpeechHelper
                             this.CurrentSpeechStream.SpeechParameterStreams.RemoveAt(i);
                             i--;
                         }
-
                     }
 
                     if (copy != null)
@@ -594,32 +613,36 @@ namespace PublicSpeechHelper
         private void EngineOnSpeechRecognized(object sender, SpeechRecognizedEventArgs speechRecognizedEventArgs)
         {
             var token = new SpeechRecognitionArgs(speechRecognizedEventArgs.Result.Text, speechRecognizedEventArgs);
-            this._OnTextRecognized.OnNext(token);
 
-            //first look for simple methods could contain some abort methods... through this.State
-            if (LookForSimpleCommands(token.Text))
-                return;
-
-
-            if (this.State == ExecutingState.ListeningForParameters)
+            if (this.State != ExecutingState.NotListening)
             {
-                //parameter name could be left out
-                if (SetCurrentParameter(token.Text) == false)
-                    FinishCurrentParameter(token.Text); //maybe we left the parameter name out
+                this._OnTextRecognized.OnNext(token);
+
+                //first look for simple methods could contain some abort methods... through this.State
+                if (LookForSimpleCommands(token.Text))
+                    return;
+
+
+                if (this.State == ExecutingState.ListeningForParameters)
+                {
+                    if (SetCurrentParameter(token.Text) == false)
+                        FinishCurrentParameter(token.Text); //maybe we left the parameter name out
+
+                }
+                else if (this.State == ExecutingState.ListeningForParameterValue)
+                {
+                    
+                    if (FinishCurrentParameter(token.Text) == false)
+                        SetCurrentParameter(token.Text); //user can change the current parameter
+
+                }
+                else
+                {
+                    if (token.CancelFurtherCommands == false)
+                        LookForCommands(token.Text);
+                }
 
             }
-            else if (this.State == ExecutingState.ListeningForParameterValue)
-            {
-                if (FinishCurrentParameter(token.Text) == false)
-                    SetCurrentParameter(token.Text);
-
-            }
-            else
-            {
-                if (token.CancelFurtherCommands == false)
-                    LookForCommands(token.Text);
-            }
-
         }
 
         #endregion
@@ -632,17 +655,45 @@ namespace PublicSpeechHelper
         /// <returns>true: command found, false: not found or disabled</returns>
         private bool LookForSimpleCommands(string text)
         {
-            Dictionary<string, SimpleCommandTuple> simpleCommands;
+            Dictionary<string, SimpleSpeechGroupTuple> simpleCommands;
 
             if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleCommands))
             {
-                SimpleCommandTuple cmd;
-                if (simpleCommands.TryGetValue(text, out cmd))
+
+                if (string.IsNullOrEmpty(this.CurrentSimpleSpeechGroupKey))
                 {
-                    if (cmd.IsEnabled)
+                    //search all
+                    foreach (var simpleSpeechGroupTuple in simpleCommands)
                     {
-                        cmd.Action();
-                        return true;
+                        SimpleCommandTuple cmd;
+                        if (simpleSpeechGroupTuple.Value.Commands.TryGetValue(text, out cmd))
+                        {
+                            if (cmd.IsEnabled)
+                            {
+                                cmd.Action();
+                                return true;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    //just search the current simple speech group
+                    SimpleSpeechGroupTuple simpleSpeechGroupTuple;
+                    if (simpleCommands.TryGetValue(this.CurrentSimpleSpeechGroupKey, out simpleSpeechGroupTuple))
+                    {
+                        if (simpleSpeechGroupTuple.IsEnabled)
+                        {
+                            SimpleCommandTuple cmd;
+                            if (simpleSpeechGroupTuple.Commands.TryGetValue(text, out cmd))
+                            {
+                                if (cmd.IsEnabled)
+                                {
+                                    cmd.Action();
+                                    return true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -690,7 +741,10 @@ namespace PublicSpeechHelper
                             if (speechGroupTuple.Value.Commands.TryGetValue(text, out speechTuple))
                             {
                                 if (speechTuple.IsEnabled)
+                                {
                                     TryExecuteMethod(speechTuple, text);
+                                    return; //execut only the first found speech group
+                                }
                             }
                         }
                     }
@@ -700,15 +754,15 @@ namespace PublicSpeechHelper
         }
 
         /// <summary>
-        /// adds a simple method to execute (no befor & after invoked events are fired for this methods)
+        /// adds a simple method to execute (no befor + after invoked events are fired for this methods)
         /// </summary>
         /// <param name="lang">the language</param>
         /// <param name="text">the phrase unique for the language</param>
+        /// <param name="simpleSpeechGroupKey">the simple speech group tuple</param>
         /// <param name="action">the action to perfrom when the phrase is recognized</param>
-        /// <param name="key">the key for later access (if empty the text is used as unique key)</param>
-        public void AddSimpleCommand(string lang, string text, Action action)
+        public void AddSimpleCommand(string lang, string text, string simpleSpeechGroupKey, Action action)
         {
-            this.AllCommands.AddSimpleCommand(lang, text, action);
+            this.AllCommands.AddSimpleCommand(lang, text, simpleSpeechGroupKey, action);
         }
 
 
@@ -755,13 +809,13 @@ namespace PublicSpeechHelper
                 choices.Add(plainPhrase);
 
 
-
-            Dictionary<string, SimpleCommandTuple> simpleMethods;
-
-            if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleMethods))
-                foreach (var speechName in simpleMethods.Keys)
-                    choices.Add(speechName);
-
+            Dictionary<string, SimpleSpeechGroupTuple> simpleSpeechGroup;
+            if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleSpeechGroup))
+            {
+                foreach (var simpleSpeechGroupTuple in simpleSpeechGroup)//simpleSpeechGroupTuple.key is the simple speech group key
+                    foreach (var simpleCommand in simpleSpeechGroupTuple.Value.Commands)
+                        choices.Add(simpleCommand.Key);
+            }
 
 
             //add every method
@@ -808,7 +862,7 @@ namespace PublicSpeechHelper
 
 
         /// <summary>
-        /// enables or disables a simple command
+        /// enables or disables all simple command with this text
         /// </summary>
         /// <param name="lang">the language</param>
         /// <param name="text">the text</param>
@@ -819,7 +873,18 @@ namespace PublicSpeechHelper
         }
 
         /// <summary>
-        /// enables or disables a command
+        /// enables or disables a simple speech group
+        /// </summary>
+        /// <param name="lang">the language</param>
+        /// <param name="simpleSpeechGroupKey">the simple speech group key</param>
+        /// <param name="isEnabled">true: command is processed, false: not</param>
+        public bool ChangeSimpleSpeechGroup(string lang, string simpleSpeechGroupKey, bool isEnabled)
+        {
+            return this.AllCommands.ChangeSimpleSpeechGroup(lang, simpleSpeechGroupKey, isEnabled);
+        }
+
+        /// <summary>
+        /// enables or disables all command with this key
         /// </summary>
         /// <param name="key">the method key</param>
         /// <param name="isEnabled">true: command will be processed, false: not</param>
@@ -839,9 +904,11 @@ namespace PublicSpeechHelper
         }
 
 
+        /*
         private Grammar CreateColorGrammar()
         {
-            //TODO remove
+            //TODO maybe use different grammars for the parameters e.g. set x to {1,2,3,4,5...}
+         * 
             // Create a Choices object that contains a set of alternative colors.
             Choices colorChoice = new Choices();
             colorChoice.Add(new string[] { "rot", "gelb", "grün" });
@@ -856,6 +923,7 @@ namespace PublicSpeechHelper
 
             return colorGrammar;
         }
+        */
 
 
         /// <summary>

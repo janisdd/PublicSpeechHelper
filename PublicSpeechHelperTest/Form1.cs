@@ -19,8 +19,6 @@ namespace PublicSpeechHelperTest
 
     //TODO rename all the event parameter types...
 
-    //TODO check all possibilities when chainging and leaving parameters (names) out
-
     [SpeechEnabled]
     public partial class Form1 : Form
     {
@@ -53,7 +51,7 @@ namespace PublicSpeechHelperTest
             //helper.GatherCommands(Assembly.GetExecutingAssembly());
             helper.GatherCommands(typeof(Form1), this);
 
-            helper.AddSimpleCommand("de-de", "abbrechen", () =>
+            helper.AddSimpleCommand("de-de", "abbrechen", "abc", () =>
             {
                 if (helper.State == ExecutingState.ListeningForParameterValue)
                 {
@@ -68,23 +66,29 @@ namespace PublicSpeechHelperTest
                 }
             });
 
-            /*
-            helper.AddSimpleCommand("de-de", "los",() =>
+            //helper.ChangeCommand("", false);
+            //helper.ChangeSimpleCommand("de-de", "abbrechen", false);
+
+            //helper.ChangeSpeechGroup("", true);
+            //helper.ChangeSimpleSpeechGroup("de-de", "abc", true);
+
+           
+            helper.AddSimpleCommand("de-de", "los", "", () =>
             {
                 textBox1.Text += "los" + Environment.NewLine;
 
             });
+            /*
+           helper.AddSimpleCommand("de-de", "ja", () =>
+           {
+               helper.ChangeSimpleCommand("de-de", "los", false);
+           });
 
-            helper.AddSimpleCommand("de-de", "ja", () =>
-            {
-                helper.ChangeSimpleCommand("de-de", "los", false);
-            });
-
-            helper.AddSimpleCommand("de-de", "nein", () =>
-            {
-                helper.ChangeSimpleCommand("de-de", "los", true);
-            });
-             * */
+           helper.AddSimpleCommand("de-de", "nein", () =>
+           {
+               helper.ChangeSimpleCommand("de-de", "los", true);
+           });
+            * */
 
             //build the speech recognition (words)
             helper.RebuildAllCommands();
@@ -135,23 +139,23 @@ namespace PublicSpeechHelperTest
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            helper.Speak("starte");
+            helper.SpeakAsync("starte");
             helper.StartListening();
             this.Text = "Listening...";
         }
 
         private void btnStop_Click(object sender, EventArgs e)
         {
-            helper.Speak("stoppe");
+            helper.SpeakAsync("stoppe");
             helper.StopListening();
             this.Text = "Stopped";
         }
 
-        [SpeechMethod("de-de", "test", Key = "1")]
+        [SpeechMethod("de-de", "test",Key = "1")]
         public void TestMethod0(
-            [SpeechParameter("de-de", "x", "x gleich")] 
+            [SpeechParameter("de-de", "x", "x gleich")]
             int x,
-            [SpeechParameter("de-de", "y", "x gleich")] 
+            [SpeechParameter("de-de", "y", "x gleich")]
             int y
             )
         {
@@ -164,19 +168,19 @@ namespace PublicSpeechHelperTest
         //    textBox1.Text += @"Das ist nur ein Test ()!" + Environment.NewLine;
         //}
 
-        //[SpeechMethod("de-de", "test2", Key = "2")]
+        [SpeechMethod("de-de", "test2", Key = "2")]
         public void TestMethod9()
         {
             textBox1.Text += @"Das ist nur ein Test2!" + Environment.NewLine;
         }
 
-        //[SpeechMethod("de-de", "leeren")]
+        [SpeechMethod("de-de", "leeren")]
         public void TestMethod1()
         {
             textBox1.Clear();
         }
 
-        //[SpeechMethod("de-de", "stopp")]
+        [SpeechMethod("de-de", "stopp")]
         public void s1()
         {
             helper.Speak("stoppe");
@@ -184,14 +188,14 @@ namespace PublicSpeechHelperTest
             this.Text = "Stopped";
         }
 
-        //[SpeechMethod("de-de", "fenster schließen", "exit", "ende")]
+        [SpeechMethod("de-de", "fenster schließen", "exit", "ende")]
         public void TestMethod2()
         {
             helper.Speak("bis zum nächsten mal ...");
             this.Close();
         }
 
-        //[SpeechMethod("de-de", "sage etwas")]
+        [SpeechMethod("de-de", "sage etwas")]
         public void TestMethod3()
         {
             helper.Speak("was soll ich sagen?");
@@ -201,9 +205,10 @@ namespace PublicSpeechHelperTest
         public void TestMethod4()
         {
             textBox1.Clear();
+
             foreach (var speechGroup in helper.AllCommands.Commands[helper.CurrentInputCulture])
             {
-                textBox1.Text += "Groups: " + Environment.NewLine;
+                textBox1.Text += "Befehlt für " + helper.CurrentInputCulture + ": " + Environment.NewLine;
 
                 textBox1.Text += '\t' + speechGroup.Key + " (" + speechGroup.Value.Commands.Count + ")" + Environment.NewLine;
 
@@ -213,6 +218,25 @@ namespace PublicSpeechHelperTest
                     textBox1.Text += @"		" + speechTuple.Key + Environment.NewLine;
                 }
             }
+
+            foreach (var langCommand in helper.AllCommands.SimpleCommands)
+            {
+                textBox1.Text += "Simple Groups: " + Environment.NewLine;
+                textBox1.Text += '\t' + langCommand.Key + Environment.NewLine;
+
+                foreach (var simpleSpeechGroupTuple in langCommand.Value)
+                {
+                    textBox1.Text += @"		Group Key: " + simpleSpeechGroupTuple.Key + Environment.NewLine;
+
+                    foreach (var simpleCommandTuple in simpleSpeechGroupTuple.Value.Commands)
+                    {
+                        textBox1.Text += @"				" + simpleCommandTuple.Key + Environment.NewLine;
+                    }
+
+                }
+
+            }
+
         }
 
 
