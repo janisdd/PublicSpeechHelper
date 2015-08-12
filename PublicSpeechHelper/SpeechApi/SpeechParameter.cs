@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
+using PublicSpeechHelper.Helpers;
 
 namespace PublicSpeechHelper.SpeechApi
 {
@@ -18,5 +19,11 @@ namespace PublicSpeechHelper.SpeechApi
         /// the real parameter info
         /// </summary>
         public ParameterInfo ParameterInfo { get; set; }
+
+
+        /// <summary>
+        /// the converter for this parameter
+        /// </summary>
+        public SpeechParameterConverter Converter { get; set; }
     }
 }

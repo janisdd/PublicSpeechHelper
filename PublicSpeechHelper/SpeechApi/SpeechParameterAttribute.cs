@@ -26,13 +26,20 @@ namespace PublicSpeechHelper.SpeechApi
         public string Key { get; set; }
 
         /// <summary>
+        /// the key for the converter to translate the string to the parameter value
+        /// </summary>
+        public string ConverterKey { get; set; }
+
+        /// <summary>
         /// creates a new SpeechParameterAttribute
         /// </summary>
         /// <param name="lang">the culture name (e.g. de-de)</param>
+        /// <param name="converterKey">the converter key</param>
         /// <param name="speechNames">the speech name</param>
-        public SpeechParameterAttribute(string lang,params string[] speechNames)
+        public SpeechParameterAttribute(string lang, string converterKey, params string[] speechNames)
         {
             this.Lang = lang;
+            this.ConverterKey = converterKey;
             this.SpeechNames = speechNames.ToList();
         }
     }

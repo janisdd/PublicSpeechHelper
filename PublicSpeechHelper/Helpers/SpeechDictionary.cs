@@ -11,6 +11,12 @@ namespace PublicSpeechHelper.Helpers
     /// </summary>
     public class SpeechDictionary
     {
+
+        /// <summary>
+        /// all converters
+        /// </summary>
+        public Dictionary<string, SpeechParameterConverter> Converters { get; set; }
+
         /// <summary>
         /// all normal (complex) commands
         /// <para />
@@ -37,6 +43,7 @@ namespace PublicSpeechHelper.Helpers
             Commands = new Dictionary<string, Dictionary<string, SpeechGroupTuple>>();
             PlainPhrases = new HashSet<string>();
             SimpleCommands = new Dictionary<string, Dictionary<string, SimpleSpeechGroupTuple>>();
+            Converters = new Dictionary<string, SpeechParameterConverter>();
         }
 
 

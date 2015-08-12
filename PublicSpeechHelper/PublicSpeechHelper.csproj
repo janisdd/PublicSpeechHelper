@@ -73,6 +73,8 @@
     <Compile Include="SpeechApi\SpeechEnabledAttribute.cs" />
     <Compile Include="SpeechApi\SpeechMethod.cs" />
     <Compile Include="SpeechApi\SpeechMethodAttribute.cs" />
+    <Compile Include="SpeechApi\SpeechParameterConverter.cs" />
+    <Compile Include="SpeechApi\SpeechParameterConverterAttribute.cs" />
     <Compile Include="SpeechApi\SpeechRecognitionConflictArgs.cs" />
     <Compile Include="SpeechHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
