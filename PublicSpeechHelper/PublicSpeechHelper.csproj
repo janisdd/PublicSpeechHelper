@@ -48,7 +48,9 @@
       <HintPath>..\packages\Rx-PlatformServices.2.2.5\lib\net40\System.Reactive.PlatformServices.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="System.Speech" />
+    <Reference Include="System.Speech">
+      <EmbedInteropTypes>False</EmbedInteropTypes>
+    </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -56,6 +58,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Helpers\AfterSimpleComamndInokedArgs.cs" />
+    <Compile Include="Helpers\BeforeSimpleCommandInvokedArgs.cs" />
     <Compile Include="Helpers\Crawler.cs" />
     <Compile Include="Helpers\ExecutingState.cs" />
     <Compile Include="Helpers\SimpleCommandTuple.cs" />

@@ -5,27 +5,19 @@ using System.Data;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using PublicSpeechHelper;
 using PublicSpeechHelper.Helpers;
 using PublicSpeechHelper.SpeechApi;
-using SpeechLib;
-
 
 namespace PublicSpeechHelperTest
 {
 
-    //TODO check converter match to method
-
     //TODO rename all the event parameter types...
     //TODO check all events maybe we can give some more information
-    //TODO pretend input
-
-    //TODO switch to { choice1, choice2 } -> function switchto (string choice) -> normal switch to speech name witch parameter
-    // plus grammar builder switch to { choices } for fast access?
-    //switch to class 10A
 
     //error when start and stop and start called
 
@@ -40,8 +32,6 @@ namespace PublicSpeechHelperTest
         public Form1()
         {
             InitializeComponent();
-
-
 
 
 
@@ -79,6 +69,18 @@ namespace PublicSpeechHelperTest
                     helper.AbortListeningForParameters();
 
                 }
+            });
+
+            helper.OnBeforeSimpleCommandInvoked.Subscribe(p =>
+            {
+                if (checkBox1.Checked)
+                    helper.Speak("simpler befehlt " + p.Text + " wird ausgeführt");
+            });
+
+            helper.OnAfterSimpleCommandInvoked.Subscribe(p =>
+            {
+                if (checkBox1.Checked)
+                    helper.Speak("simpler befehl " + p.Text + " wurde ausgeführt");
             });
 
             //helper.ChangeCommand("", false);
@@ -119,28 +121,28 @@ namespace PublicSpeechHelperTest
             {
                 textBox1.Text += tuple.RecognizedText + "(";
                 if (checkBox1.Checked)
-                helper.Speak("jetzt die parameter");
+                    helper.Speak("jetzt die parameter");
             });
 
             helper.OnParameterRecognized.Subscribe(p =>
             {
                 textBox1.Text += p.RecognizedParameterNameText + ": ";
                 if (checkBox1.Checked)
-                helper.Speak("wert für " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " wird erwartet");
+                    helper.Speak("wert für " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " wird erwartet");
             });
 
             helper.OnParameterFinished.Subscribe(p =>
             {
                 textBox1.Text += p.SpeechParameterInfo.Value + ", ";
                 if (checkBox1.Checked)
-                helper.Speak("parameter " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " fertig");
+                    helper.Speak("parameter " + p.SpeechParameterInfo.Parameter.ParameterInfo.Name + " fertig");
             });
 
             helper.OnBeforeMethodInvoked.Subscribe(p =>
             {
                 //p.Method.
                 if (checkBox1.Checked)
-                helper.Speak("methode wird ausgeführt");
+                    helper.Speak("methode wird ausgeführt");
             });
 
             helper.OnLastParameterFinished.Subscribe(p =>
@@ -160,12 +162,10 @@ namespace PublicSpeechHelperTest
                 listBox2.Items.Add(items[i]);
 
                 if (i == mmmMax - 1)
-                    helper.AddPlainPhrase(items[i], true);
+                    helper.AddPlainPhrase(true,items[i]);
                 else
-                    helper.AddPlainPhrase(items[i], false);
+                    helper.AddPlainPhrase(false,items[i]);
             }
-
-
 
             //helper.ChangeCommand("", false);
 

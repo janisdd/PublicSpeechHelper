@@ -34,7 +34,57 @@ namespace PublicSpeechHelper
         /// </summary>
         public int NumbersTo = 20;
 
-        #region events
+
+        #region custom event stuff
+
+
+        private readonly Subject<int> _OnAudioLevelUpdated;
+
+        /// <summary>
+        /// occurs when the aduo level changes
+        /// </summary>
+        public IObservable<int> OnAudioLevelUpdated
+        {
+            get
+            {
+                return _OnAudioLevelUpdated.AsObservable();
+            }
+        }
+
+
+        #region simple command events
+
+        private Subject<BeforeSimpleCommandInvokedArgs> _OnBeforeSimpleCommandInvoked;
+
+        /// <summary>
+        /// occurs before a simple command is invoked
+        /// </summary>
+        public IObservable<BeforeSimpleCommandInvokedArgs> OnBeforeSimpleCommandInvoked
+        {
+            get
+            {
+                return this._OnBeforeSimpleCommandInvoked.AsObservable();
+            }
+        }
+
+
+        private Subject<AfterSimpleComamndInokedArgs> _OnAfterSimpleCommandInvoked;
+
+        /// <summary>
+        /// occurs after a simple command was invoked
+        /// </summary>
+        public IObservable<AfterSimpleComamndInokedArgs> OnAfterSimpleCommandInvoked
+        {
+            get
+            {
+                return this._OnAfterSimpleCommandInvoked.AsObservable();
+            }
+        }
+
+
+        #endregion
+
+        #region speech command events
 
         private readonly Subject<SpeechRecognitionArgs> _OnTextRecognized;
         private readonly Subject<SpeechStream> _OnListeningForParameters;
@@ -132,6 +182,8 @@ namespace PublicSpeechHelper
 
         #endregion
 
+        #endregion
+
 
         /// <summary>
         /// the current speech group key or "" to search in every speech group
@@ -143,12 +195,17 @@ namespace PublicSpeechHelper
         /// </summary>
         public string CurrentSimpleSpeechGroupKey { get; set; }
 
-        private readonly SpeechSynthesizer _speaker;
+        public readonly SpeechSynthesizer _speaker;
         private SpeechRecognitionEngine _engine;
 
-
+        /// <summary>
+        /// a temp var to store all command choices when adding 1 command
+        /// </summary>
         private Choices _currentCommandChoices;
 
+        /// <summary>
+        /// stores all commands and information
+        /// </summary>
         public SpeechDictionary AllCommands { get; set; }
 
         /// <summary>
@@ -202,6 +259,9 @@ namespace PublicSpeechHelper
 
             this.AllCommands = new SpeechDictionary();
             this.State = ExecutingState.NoCommandsLoaded;
+            _OnBeforeSimpleCommandInvoked = new Subject<BeforeSimpleCommandInvokedArgs>();
+            _OnAfterSimpleCommandInvoked = new Subject<AfterSimpleComamndInokedArgs>();
+            _OnAudioLevelUpdated = new Subject<int>();
             _OnTextRecognized = new Subject<SpeechRecognitionArgs>();
             _OnListeningForParameters = new Subject<SpeechStream>();
             _OnParameterRecognized = new Subject<SpeechParameterStream>();
@@ -223,6 +283,7 @@ namespace PublicSpeechHelper
             SetInputCulture(_currentInputCultureInfo);
 
         }
+
 
         /// <summary>
         /// creates a new SpeechHelper with the given culture as input culture
@@ -339,17 +400,29 @@ namespace PublicSpeechHelper
         /// <summary>
         /// adds a plain phrase to look for
         /// </summary>
-        /// <param name="phrase">the phrase</param>
         /// <param name="reloadGrammar">true: automatically reload the grammar, false: user need to call RebuildAllCommands</param>
-        /// <returns>true: phrase added, false: phrase was already there</returns>
-        public bool AddPlainPhrase(string phrase, bool reloadGrammar = false)
+        /// /// <param name="phrases">the phrases to remove</param>
+        public void AddPlainPhrase(bool reloadGrammar = false, params string[] phrases)
         {
-            var test = this.AllCommands.PlainPhrases.Add(phrase);
+            foreach (var phrase in phrases)
+                this.AllCommands.PlainPhrases.Add(phrase);
 
             if (reloadGrammar)
                 this.RebuildPlainPhrases();
+        }
 
-            return test;
+        /// <summary>
+        /// removes all given phrases from the dictionary
+        /// </summary>
+        /// <param name="reloadGrammar">true: automatically reload the grammar, false: user need to call RebuildAllCommands</param>
+        /// <param name="phrases">the phrases to remove</param>
+        public void RemovePlainPhrases(bool reloadGrammar = false, params string[] phrases)
+        {
+            foreach (var phrase in phrases)
+                this.AllCommands.PlainPhrases.Remove(phrase);
+            
+            if (reloadGrammar)
+                this.RebuildPlainPhrases();
         }
 
         /// <summary>
@@ -439,7 +512,7 @@ namespace PublicSpeechHelper
 
             if (token.CancelCommand == false)
             {
-                command.Method.MethodInfo.Invoke(instance, args); //TODO maybe wrap this method in try and raise event...
+                command.Method.MethodInfo.Invoke(instance, args); //TODO maybe wrap this method in try and error raise event...
 
                 this._OnAfterMethodInvoked.OnNext(command);
             }
@@ -517,7 +590,7 @@ namespace PublicSpeechHelper
                     this.CurrentParameter = new SpeechParameterStream(parameterSpeechText, this.CurrentSpeechStream.SpeechTuple, new SpeechParameterInfo(speechParameter));
 
                     SpeechParameterStream copy = null;
-                    //1. look if there is already a old value for this parameter
+                    //1. look if there is already an old value for this parameter
                     //2. check if the parameter value is empty in this case the user just switched to another parameter
                     for (int i = 0; i < this.CurrentSpeechStream.SpeechParameterStreams.Count; i++)
                     {
@@ -696,7 +769,7 @@ namespace PublicSpeechHelper
         {
             if (speechRecognizedEventArgs == null && text == null)
                 throw new Exception("#1 unknown");
-            
+
 
             var token = new SpeechRecognitionArgs(text ?? speechRecognizedEventArgs.Result.Text, speechRecognizedEventArgs);
 
@@ -741,10 +814,9 @@ namespace PublicSpeechHelper
 
             if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleCommands))
             {
-
                 if (string.IsNullOrEmpty(this.CurrentSimpleSpeechGroupKey))
                 {
-                    //search all
+                    //search all for a matching text
                     foreach (var simpleSpeechGroupTuple in simpleCommands)
                     {
                         SimpleCommandTuple cmd;
@@ -752,7 +824,10 @@ namespace PublicSpeechHelper
                         {
                             if (cmd.IsEnabled)
                             {
-                                cmd.Action();
+
+                                ExecuteSimpleCommand(this._currentInputCulture, text, this.CurrentSimpleSpeechGroupKey,
+                                    cmd.Action);
+
                                 return true;
                             }
                         }
@@ -771,7 +846,9 @@ namespace PublicSpeechHelper
                             {
                                 if (cmd.IsEnabled)
                                 {
-                                    cmd.Action();
+                                    ExecuteSimpleCommand(this._currentInputCulture, text, this.CurrentSimpleSpeechGroupKey,
+                                    cmd.Action);
+
                                     return true;
                                 }
                             }
@@ -781,6 +858,28 @@ namespace PublicSpeechHelper
             }
 
             return false;
+        }
+
+
+        /// <summary>
+        /// executes a simple command
+        /// </summary>
+        /// <param name="lang">the language</param>
+        /// <param name="text">the simple command text</param>
+        /// <param name="speechGroupKey">the speech group key</param>
+        /// <param name="action">the action to execute</param>
+        private void ExecuteSimpleCommand(string lang, string text, string speechGroupKey, Action action)
+        {
+            var beforeArgs = new BeforeSimpleCommandInvokedArgs(lang, text, speechGroupKey, action, false);
+            this._OnBeforeSimpleCommandInvoked.OnNext(beforeArgs);
+
+            if (beforeArgs.IsCanceled == false)
+            {
+                action();
+
+                var afterArgs = new AfterSimpleComamndInokedArgs(lang, text, speechGroupKey, action);
+                this._OnAfterSimpleCommandInvoked.OnNext(afterArgs);
+            }
         }
 
         /// <summary>
@@ -1046,10 +1145,14 @@ namespace PublicSpeechHelper
         {
             _engine = new SpeechRecognitionEngine(cultureInfo);
             _engine.SetInputToDefaultAudioDevice();
-
             _engine.SpeechRecognized += EngineOnSpeechRecognized;
+            _engine.AudioLevelUpdated += EngineOnAudioLevelUpdated;
         }
 
+        private void EngineOnAudioLevelUpdated(object sender, AudioLevelUpdatedEventArgs audioLevelUpdatedEventArgs)
+        {
+            _OnAudioLevelUpdated.OnNext(audioLevelUpdatedEventArgs.AudioLevel);
+        }
 
 
         /// <summary>

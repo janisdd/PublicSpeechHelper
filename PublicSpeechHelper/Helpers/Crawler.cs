@@ -21,7 +21,8 @@ namespace PublicSpeechHelper.Helpers
         /// <param name="ignoreSpeechEnabledAttribute">true: crawl each type, false: crawl only types with SpeechEnabledAttribute</param>
         /// <param name="types">the types to crawl</param>
         /// <returns></returns>
-        public static List<SpeechParameterConverter> CrawlConverterTypes(Dictionary<string, SpeechParameterConverter> declaredConverters, bool ignoreSpeechEnabledAttribute = false, params Type[] types)
+        public static List<SpeechParameterConverter> CrawlConverterTypes(Dictionary<string, SpeechParameterConverter> declaredConverters, 
+            bool ignoreSpeechEnabledAttribute = false, params Type[] types)
         {
 
             var converters = new Dictionary<string, SpeechParameterConverter>();
@@ -104,6 +105,8 @@ namespace PublicSpeechHelper.Helpers
         }
 
         #endregion
+
+        #region methods
 
         /// <summary>
         /// cralws the given types for speech enabled types and methods and parameters
@@ -201,10 +204,11 @@ namespace PublicSpeechHelper.Helpers
                             speechParameter.ParameterInfo = parameterInfo;
 
 
+                            //check if we have a converter for this parameter
                             SpeechParameterConverter converter;
                             if (converters.TryGetValue(publicSpeechArgumentAttribute.ConverterKey, out converter))
                             {
-
+                                //converter return type and parameter type must be equal
                                 if (converter.MethodInfo.ReturnType == parameterInfo.ParameterType)
                                 {
                                     speechParameter.Converter = converter;
@@ -247,5 +251,7 @@ namespace PublicSpeechHelper.Helpers
 
             return crawledMethods;
         }
+
+        #endregion
     }
 }
