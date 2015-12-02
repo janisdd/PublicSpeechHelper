@@ -132,13 +132,13 @@ namespace PublicSpeechHelper.Helpers
                 {
                     if (speechMethod.Key == simpleGroupKey)
                     {
-                        speechMethod.Value.IsEnabled = false;
+                        speechMethod.Value.IsEnabled = isEnabled;
                         found = true;
                     }
                 }
             }
 
-            return found;
+            return isEnabled;
         }
 
         /// <summary>
@@ -158,14 +158,14 @@ namespace PublicSpeechHelper.Helpers
                         //speechTuple.key is the speech name
                         if (speechTuple.Value.Method.Key == key)
                         {
-                            speechTuple.Value.IsEnabled = false;
+                            speechTuple.Value.IsEnabled = isEnabled;
                             found = true;
                         }
                     }
                 }
             }
 
-            return found;
+            return isEnabled;
         }
 
         /// <summary>
@@ -182,14 +182,14 @@ namespace PublicSpeechHelper.Helpers
                 {
                     if (speechMethod.Key == groupKey)
                     {
-                        speechMethod.Value.IsEnabled = false;
+                        speechMethod.Value.IsEnabled = isEnabled;
                         found = true;
                     }
                 }
             }
 
 
-            return found;
+            return isEnabled;
         }
 
 

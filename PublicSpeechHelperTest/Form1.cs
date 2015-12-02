@@ -18,6 +18,7 @@ namespace PublicSpeechHelperTest
 
     //TODO rename all the event parameter types...
     //TODO check all events maybe we can give some more information
+    //TODO check enable disable commands!
 
     //error when start and stop and start called
 
@@ -35,11 +36,12 @@ namespace PublicSpeechHelperTest
 
 
 
-            var clt = CultureInfo.CurrentCulture;
+            //var clt = ;
 
-            var vlt = clt.DisplayName;
+            //var vlt = clt.DisplayName;
 
-            helper = new SpeechHelper("de-de");
+            helper = new SpeechHelper(CultureInfo.CurrentCulture.Name);//
+            //helper.SetInputCulture();
             helper.GatherConverters(typeof(Form1), this);
 
             //helper.OnParameterValueConvert = (p, value) =>
@@ -55,7 +57,8 @@ namespace PublicSpeechHelperTest
             //grab some speech methods
             //helper.GatherCommands(Assembly.GetExecutingAssembly());
             helper.GatherCommands(typeof(Form1), this);
-
+            
+            
             helper.AddSimpleCommand("de-de", "abbrechen", "abc", () =>
             {
                 if (helper.State == ExecutingState.ListeningForParameterValue)
@@ -70,6 +73,8 @@ namespace PublicSpeechHelperTest
 
                 }
             });
+
+            //helper.ChangeSpeechGroup("groupKey", false)
 
             helper.OnBeforeSimpleCommandInvoked.Subscribe(p =>
             {
@@ -167,9 +172,59 @@ namespace PublicSpeechHelperTest
                     helper.AddPlainPhrase(false,items[i]);
             }
 
+            //de
+            //helper.AddPlainPhrase(true, "rot","blau");
+
+            //en
+            helper.AddPlainPhrase(true, "red","blue");
+
             //helper.ChangeCommand("", false);
+            var test = helper.AllCommands.Commands;
+
+            //helper.AddCommand();
 
 
+        }
+
+        [SpeechParameterConverter("colorConverterDE")]
+        public Color ConvertColorDE(string color)
+        {
+            if (color == "rot")
+            {
+                return Color.FromKnownColor(KnownColor.Red);
+            }else if (color == "blau")
+            {
+                return Color.FromKnownColor(KnownColor.Blue);
+            }
+
+            //throw error or return default value
+            return Color.FromKnownColor(KnownColor.Gray);
+        }
+
+        [SpeechParameterConverter("colorConverterEN")]
+        public Color ConvertColorEN(string color)
+        {
+            if (color == "red")
+            {
+                return Color.FromKnownColor(KnownColor.Red);
+            }
+            else if (color == "blue")
+            {
+                return Color.FromKnownColor(KnownColor.Blue);
+            }
+
+            //thor error or return default value
+            return Color.FromKnownColor(KnownColor.Gray);
+        }
+
+        [SpeechMethod("de-de","hintergrundfarbe")]
+        [SpeechMethod("en-gb", "color")]
+        public void SetBackground(
+            [SpeechParameter("de-de", "colorConverterDE")]
+            [SpeechParameter("en-gb", "colorConverterEN")]
+            Color color)
+        {
+            this.BackColor = color;
         }
 
         private void btnStart_Click(object sender, EventArgs e)
@@ -216,13 +271,13 @@ namespace PublicSpeechHelperTest
 
         [SpeechMethod("de-de", "test", Key = "1")]
         public void TestMethod0(
-            [SpeechParameter("de-de", "intConv", "x", "x gleich")]
-            int x,
-            [SpeechParameter("de-de", "intConv", "y", "x gleich")]
+            [SpeechParameter("de-de", "intConv")]
+            int xt,
+            [SpeechParameter("de-de", "intConv", "y", "y gleich")]
             int y
             )
         {
-            textBox1.Text += @"Das ist nur ein Test (x: " + x + @", y: " + y + @")!" + Environment.NewLine;
+            textBox1.Text += @"Das ist nur ein Test (x: " + xt + @", y: " + y + @")!" + Environment.NewLine;
         }
 
         [SpeechMethod("de-de", "gehe zu")]
@@ -282,7 +337,7 @@ namespace PublicSpeechHelperTest
 
             foreach (var speechGroup in helper.AllCommands.Commands[helper.CurrentInputCulture])
             {
-                textBox1.Text += "Befehlt für " + helper.CurrentInputCulture + ": " + Environment.NewLine;
+                textBox1.Text += "Befehle für " + helper.CurrentInputCulture + ": " + Environment.NewLine;
 
                 textBox1.Text += '\t' + speechGroup.Key + " (" + speechGroup.Value.Commands.Count + ")" + Environment.NewLine;
 

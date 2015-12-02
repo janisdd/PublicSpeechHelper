@@ -293,6 +293,8 @@ namespace PublicSpeechHelper
             : this()
         {
             this.CurrentInputCulture = inputCulture;
+            this.SetInputCulture(_currentInputCultureInfo);
+            this.SetVoice(VoiceGender.NotSet, _currentInputCultureInfo);
         }
 
 
@@ -319,7 +321,8 @@ namespace PublicSpeechHelper
         /// gathers all parameter converter methods in the type
         /// </summary>
         /// <param name="type">the type</param>
-        /// <param name="invokingInstance">the invoking instance for the converter method</param>
+        /// <param name="invokingInstance">the instance to invoke the speech methods or null to create one with the parameterless constructor (
+        /// static methods doesnt need a invoking instance so leave this null)</param>
         public void GatherConverters(Type type, object invokingInstance = null)
         {
             var converters = Crawler.CrawlConverterTypes(this.AllCommands.Converters, true, type);
@@ -963,15 +966,25 @@ namespace PublicSpeechHelper
         {
             var choices = new Choices();
 
+            int count = 0;
             Dictionary<string, SimpleSpeechGroupTuple> simpleSpeechGroup;
             if (this.AllCommands.SimpleCommands.TryGetValue(this._currentInputCulture, out simpleSpeechGroup))
             {
                 foreach (var simpleSpeechGroupTuple in simpleSpeechGroup)//simpleSpeechGroupTuple.key is the simple speech group key
                     foreach (var simpleCommand in simpleSpeechGroupTuple.Value.Commands)
+                    {
                         choices.Add(simpleCommand.Key);
+                        count++;
+                    }
+                        
             }
 
-            this.ExtendCurrentGrammar(choices, ref this.SimpleCommandGrammar);
+
+            if (count > 0)
+            {
+                this.ExtendCurrentGrammar(choices, ref this.SimpleCommandGrammar);
+            }
+            
         }
 
         /// <summary>
@@ -1143,10 +1156,18 @@ namespace PublicSpeechHelper
         /// <param name="cultureInfo"></param>
         public void SetInputCulture(CultureInfo cultureInfo)
         {
-            _engine = new SpeechRecognitionEngine(cultureInfo);
-            _engine.SetInputToDefaultAudioDevice();
-            _engine.SpeechRecognized += EngineOnSpeechRecognized;
-            _engine.AudioLevelUpdated += EngineOnAudioLevelUpdated;
+            try
+            {
+                _engine = new SpeechRecognitionEngine(cultureInfo);
+                _engine.SetInputToDefaultAudioDevice();
+                _engine.SpeechRecognized += EngineOnSpeechRecognized;
+                _engine.AudioLevelUpdated += EngineOnAudioLevelUpdated;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            
         }
 
         private void EngineOnAudioLevelUpdated(object sender, AudioLevelUpdatedEventArgs audioLevelUpdatedEventArgs)
